@@ -5,6 +5,7 @@ import {
   findNode,
   removeNode,
 } from '../model/ChatNode';
+import { syncFromCursor } from '../parser/syncFromCursor';
 import { ChatStorage } from '../storage/ChatStorage';
 import { ChatTreeItem } from './ChatTreeItem';
 
@@ -19,16 +20,42 @@ export class ChatTreeProvider
   private root: ChatNode | undefined;
   private activeNodeId: string = 'root';
 
-  constructor(private readonly storage: ChatStorage) {}
+  constructor(
+    private readonly storage: ChatStorage,
+    private readonly workspaceFolder: vscode.WorkspaceFolder
+  ) {}
 
   async initialize(): Promise<void> {
-    this.root = await this.storage.load();
+    const synced = await this.syncFromCursor();
+    if (synced) {
+      this.root = synced;
+    } else {
+      this.root = await this.storage.load();
+    }
     this.activeNodeId = this.root.id;
     this.refresh();
   }
 
+  async syncFromCursor(): Promise<ChatNode | null> {
+    const synced = await syncFromCursor(this.workspaceFolder);
+    if (!synced) {
+      return null;
+    }
+
+    this.root = synced;
+    await this.storage.save(synced);
+    this.refresh();
+    return synced;
+  }
+
   refresh(): void {
     this._onDidChangeTreeData.fire(undefined);
+  }
+
+  async reloadFromStorage(): Promise<void> {
+    this.root = await this.storage.load();
+    this.activeNodeId = this.root.id;
+    this.refresh();
   }
 
   getTreeItem(element: ChatTreeItem): vscode.TreeItem {

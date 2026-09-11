@@ -43,12 +43,12 @@
 
 ### 方式 B — 从 VSIX 安装
 
-1. 打包扩展：
+1. 打包扩展（`vsce` 需要 **Node.js 18+**；Node 16 会报 `ReadableStream is not defined`）：
 
    ```bash
    npm install
    npm run build
-   npx @vscode/vsce package
+   npx @vscode/vsce package --allow-missing-repository
    ```
 
    会在项目根目录生成类似 `cursor-chat-tree-0.0.1.vsix` 的文件。

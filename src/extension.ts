@@ -5,15 +5,16 @@ import { ChatTreeItem } from './tree/ChatTreeItem';
 import { ChatTreeProvider } from './tree/ChatTreeProvider';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
   const storage = getWorkspaceStorage();
-  if (!storage) {
+  if (!storage || !workspaceFolder) {
     vscode.window.showWarningMessage(
       'AI Chat Tree: Open a workspace folder to use chat tree storage.'
     );
     return;
   }
 
-  const provider = new ChatTreeProvider(storage);
+  const provider = new ChatTreeProvider(storage, workspaceFolder);
   await provider.initialize();
 
   const treeView = vscode.window.createTreeView<ChatTreeItem>('chatTreeView', {

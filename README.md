@@ -43,12 +43,12 @@ To iterate on code, run `npm run watch` in a terminal so changes rebuild automat
 
 ### Option B — Install from a VSIX package
 
-1. Build the extension package:
+1. Build the extension package (requires **Node.js 18+** for `vsce`; Node 16 will fail with `ReadableStream is not defined`):
 
    ```bash
    npm install
    npm run build
-   npx @vscode/vsce package
+   npx @vscode/vsce package --allow-missing-repository
    ```
 
    This creates a file like `cursor-chat-tree-0.0.1.vsix` in the project root.

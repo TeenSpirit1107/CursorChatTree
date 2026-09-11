@@ -31,7 +31,13 @@ export function registerCommands(
     }),
 
     vscode.commands.registerCommand('cursorChatTree.refresh', async () => {
-      await provider.initialize();
+      const synced = await provider.syncFromCursor();
+      if (!synced) {
+        vscode.window.showWarningMessage(
+          'AI Chat Tree: Could not sync from Cursor. Ensure sqlite3 is installed and this workspace has chat history.'
+        );
+        await provider.reloadFromStorage();
+      }
     }),
   ];
 }
