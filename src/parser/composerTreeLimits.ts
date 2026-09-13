@@ -64,6 +64,37 @@ function rebuildComposer(node: ChatNode, kept: Set<string>): ChatNode {
   };
 }
 
+function isEmptyShellComposerNode(node: ChatNode): boolean {
+  if (node.id === 'root' || node.kind === 'workspace-root') {
+    return false;
+  }
+  if (node.children.length > 0) {
+    return false;
+  }
+  if (node.title !== '(Untitled chat)') {
+    return false;
+  }
+  const summary = node.summary?.trim();
+  return !summary || summary === 'New chat';
+}
+
+function stripEmptyShellComposersRecursive(node: ChatNode): ChatNode {
+  return {
+    ...node,
+    children: node.children
+      .filter((child) => !isEmptyShellComposerNode(child))
+      .map((child) => stripEmptyShellComposersRecursive(child)),
+  };
+}
+
+/** Removes cached empty Cursor composer shells from an already-built tree. */
+export function stripEmptyShellComposers(workspaceRoot: ChatNode): ChatNode {
+  if (workspaceRoot.id !== 'root' && workspaceRoot.kind !== 'workspace-root') {
+    return workspaceRoot;
+  }
+  return stripEmptyShellComposersRecursive(workspaceRoot);
+}
+
 /**
  * Keeps at most limits.maxRootComposers top-level chats and
  * limits.maxTotalComposers composers overall. Priority uses the latest
@@ -74,7 +105,10 @@ export function pruneComposerTree(
   limits: ComposerTreeLimits
 ): ChatNode {
   const { maxRootComposers, maxTotalComposers } = limits;
-  if (workspaceRoot.id !== 'root' || workspaceRoot.children.length === 0) {
+  if (workspaceRoot.id !== 'root' && workspaceRoot.kind !== 'workspace-root') {
+    return workspaceRoot;
+  }
+  if (workspaceRoot.children.length === 0) {
     return workspaceRoot;
   }
 

@@ -32,7 +32,14 @@ function mapStatus(status?: string): ChatNodeStatus | undefined {
 
 function composerTitle(composer: CursorComposerData): string {
   const name = composer.name?.trim();
-  return name || '(Untitled chat)';
+  if (name) {
+    return name;
+  }
+  const subtitle = composer.subtitle?.trim();
+  if (subtitle && subtitle !== 'New chat') {
+    return subtitle;
+  }
+  return '(Untitled chat)';
 }
 
 function composerActivityAt(composer: CursorComposerData): number {
@@ -55,7 +62,16 @@ function sharedPrefixLength(a: string[], b: string[]): number {
 function isSubagentComposer(composer: CursorComposerData): boolean {
   return (
     Boolean(composer.subagentInfo?.parentComposerId) ||
-    composer.composerId.startsWith('task-')
+    composer.composerId.startsWith('task-') ||
+    Boolean(composer.isBestOfNSubcomposer)
+  );
+}
+
+/** Cursor often leaves named-empty composer rows (0 bubbles) in storage. */
+function isEmptyComposerShell(composer: CursorComposerData): boolean {
+  return (
+    (composer.fullConversationHeadersOnly ?? []).length === 0 &&
+    !composer.name?.trim()
   );
 }
 
@@ -65,7 +81,10 @@ export class MessageForkParser {
     workspaceTitle = 'Conversations',
     limits: ComposerTreeLimits
   ): ChatNode | null {
-    const eligible = [...composers.values()].filter((composer) => !isSubagentComposer(composer));
+    const eligible = [...composers.values()].filter(
+      (composer) =>
+        !isSubagentComposer(composer) && !isEmptyComposerShell(composer)
+    );
     if (eligible.length === 0) {
       return null;
     }
