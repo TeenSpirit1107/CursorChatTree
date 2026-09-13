@@ -1,5 +1,11 @@
 export type ChatNodeStatus = 'active' | 'completed' | 'abandoned';
 
+export type ChatNodeKind =
+  | 'workspace-root'
+  | 'composer'
+  | 'message'
+  | 'fork-point';
+
 export interface ChatNode {
   id: string;
   parentId?: string;
@@ -8,6 +14,13 @@ export interface ChatNode {
   children: ChatNode[];
   summary?: string;
   status?: ChatNodeStatus;
+  kind?: ChatNodeKind;
+  composerId?: string;
+  bubbleId?: string;
+  bubbleType?: number;
+  forkedFromComposerId?: string;
+  forkedAtBubbleId?: string;
+  source?: 'cursor' | 'local';
 }
 
 export function createChatNode(

@@ -33,6 +33,12 @@ export interface CursorComposerData {
   fullConversationHeadersOnly?: Array<{ bubbleId: string; type: number }>;
 }
 
+export interface CursorBubbleData {
+  text?: string;
+  rawText?: string;
+  type?: number;
+}
+
 export interface CursorWorkspaceComposerData {
   allComposers?: CursorComposerHeader[];
   selectedComposerIds?: string[];

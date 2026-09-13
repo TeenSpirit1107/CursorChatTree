@@ -2,3 +2,4 @@ docs-dev
 node_modules/
 dist/
 *.vsix
+.cursor-chat-tree/

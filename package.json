@@ -72,17 +72,17 @@
       "view/item/context": [
         {
           "command": "cursorChatTree.createBranch",
-          "when": "view == chatTreeView",
+          "when": "view == chatTreeView && viewItem != cursor-readonly",
           "group": "inline"
         },
         {
           "command": "cursorChatTree.rename",
-          "when": "view == chatTreeView",
+          "when": "view == chatTreeView && viewItem == branch",
           "group": "1_modification"
         },
         {
           "command": "cursorChatTree.delete",
-          "when": "view == chatTreeView && viewItem != root",
+          "when": "view == chatTreeView && viewItem == branch",
           "group": "2_delete"
         }
       ]
@@ -98,6 +98,7 @@
     "@types/node": "^20.14.0",
     "@types/vscode": "^1.85.0",
     "esbuild": "^0.21.5",
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "vsce": "^2.15.0"
   }
 }

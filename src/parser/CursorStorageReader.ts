@@ -2,6 +2,7 @@ import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
+  CursorBubbleData,
   CursorComposerData,
   CursorComposerHeadersIndex,
   CursorWorkspaceComposerData,
@@ -266,4 +267,19 @@ export async function loadWorkspaceComposers(
 
 export function isCursorStorageAvailable(): boolean {
   return isSqliteCliAvailable() && fs.existsSync(getGlobalStateDbPath());
+}
+
+export function readBubbleData(
+  composerId: string,
+  bubbleId: string
+): CursorBubbleData | undefined {
+  const globalDbPath = getGlobalStateDbPath();
+  if (!fs.existsSync(globalDbPath) || !isSqliteCliAvailable()) {
+    return undefined;
+  }
+  return readJsonValue<CursorBubbleData>(
+    globalDbPath,
+    'cursorDiskKV',
+    `bubbleId:${composerId}:${bubbleId}`
+  );
 }
