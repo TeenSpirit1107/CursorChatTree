@@ -4,9 +4,16 @@ import * as path from 'path';
 import {
   CursorBubbleData,
   CursorComposerData,
+  CursorComposerHeader,
   CursorComposerHeadersIndex,
   CursorWorkspaceComposerData,
 } from './cursorTypes';
+import { ComposerTreeLimits } from '../config/composerTreeSettings';
+import {
+  composerActivity,
+  rankComposerIds,
+  selectComposerIdsForLimits,
+} from './composerIdSelection';
 import {
   findWorkspaceStorageId,
   getCursorProjectsRoot,
@@ -129,6 +136,30 @@ function collectComposerIdsFromAgentTranscripts(workspacePath: string): string[]
   }
 }
 
+function composerMatchesWorkspace(
+  composer: CursorComposerHeader,
+  workspacePath: string,
+  workspaceStorageId?: string
+): boolean {
+  const identifier = composer.workspaceIdentifier;
+  if (!identifier) {
+    return false;
+  }
+  if (workspaceStorageId && identifier.id === workspaceStorageId) {
+    return true;
+  }
+  const normalizedPath = normalizeFolderPath(workspacePath);
+  const fsPath = identifier.uri?.fsPath;
+  if (fsPath && normalizeFolderPath(fsPath) === normalizedPath) {
+    return true;
+  }
+  const external = identifier.uri?.external;
+  if (external && folderUriMatchesWorkspace(external, workspacePath)) {
+    return true;
+  }
+  return false;
+}
+
 function collectComposerIdsFromGlobalHeaders(
   dbPath: string,
   workspacePath: string,
@@ -143,28 +174,120 @@ function collectComposerIdsFromGlobalHeaders(
     return [];
   }
 
-  const normalizedPath = normalizeFolderPath(workspacePath);
   return headers.allComposers
-    .filter((composer) => {
-      const identifier = composer.workspaceIdentifier;
-      if (!identifier) {
-        return false;
-      }
-      if (workspaceStorageId && identifier.id === workspaceStorageId) {
-        return true;
-      }
-      const fsPath = identifier.uri?.fsPath;
-      if (fsPath && normalizeFolderPath(fsPath) === normalizedPath) {
-        return true;
-      }
-      const external = identifier.uri?.external;
-      if (external && folderUriMatchesWorkspace(external, workspacePath)) {
-        return true;
-      }
-      return false;
-    })
+    .filter((composer) =>
+      composerMatchesWorkspace(composer, workspacePath, workspaceStorageId)
+    )
     .map((composer) => composer.composerId)
     .filter(Boolean);
+}
+
+function mergeComposerActivity(
+  activityById: Map<string, number>,
+  composerId: string,
+  createdAt?: number,
+  lastUpdatedAt?: number
+): void {
+  const next = composerActivity(createdAt, lastUpdatedAt);
+  if (next <= 0) {
+    return;
+  }
+  const prev = activityById.get(composerId) ?? 0;
+  if (next > prev) {
+    activityById.set(composerId, next);
+  }
+}
+
+export function discoverComposerActivityMap(
+  workspacePath: string,
+  seedIds: string[]
+): Map<string, number> {
+  const activityById = new Map<string, number>();
+  const workspaceStorageId = findWorkspaceStorageId(workspacePath);
+
+  if (workspaceStorageId) {
+    const workspaceDbPath = path.join(
+      getWorkspaceStorageRoot(),
+      workspaceStorageId,
+      'state.vscdb'
+    );
+    if (fs.existsSync(workspaceDbPath)) {
+      const composerData = readJsonValue<CursorWorkspaceComposerData>(
+        workspaceDbPath,
+        'ItemTable',
+        'composer.composerData'
+      );
+      for (const composer of composerData?.allComposers ?? []) {
+        if (!composer.composerId) {
+          continue;
+        }
+        mergeComposerActivity(
+          activityById,
+          composer.composerId,
+          composer.createdAt,
+          composer.lastUpdatedAt
+        );
+      }
+    }
+  }
+
+  const globalDbPath = getGlobalStateDbPath();
+  if (fs.existsSync(globalDbPath)) {
+    const headers = readJsonValue<CursorComposerHeadersIndex>(
+      globalDbPath,
+      'ItemTable',
+      'composer.composerHeaders'
+    );
+    for (const composer of headers?.allComposers ?? []) {
+      if (!composer.composerId) {
+        continue;
+      }
+      if (
+        !composerMatchesWorkspace(composer, workspacePath, workspaceStorageId)
+      ) {
+        continue;
+      }
+      mergeComposerActivity(
+        activityById,
+        composer.composerId,
+        composer.createdAt,
+        composer.lastUpdatedAt
+      );
+    }
+  }
+
+  const transcriptsDir = path.join(
+    getCursorProjectsRoot(),
+    workspacePathToProjectSlug(workspacePath),
+    'agent-transcripts'
+  );
+  for (const composerId of seedIds) {
+    try {
+      const stat = fs.statSync(path.join(transcriptsDir, composerId));
+      mergeComposerActivity(
+        activityById,
+        composerId,
+        stat.mtimeMs,
+        stat.mtimeMs
+      );
+    } catch {
+      // no transcript folder for this id
+    }
+  }
+
+  return activityById;
+}
+
+function isSubagentComposerData(data: CursorComposerData): boolean {
+  return (
+    Boolean(data.subagentInfo?.parentComposerId) ||
+    data.composerId.startsWith('task-') ||
+    Boolean(data.isBestOfNSubcomposer)
+  );
+}
+
+function shouldSkipComposerIdBeforeLoad(composerId: string): boolean {
+  return composerId.startsWith('task-');
 }
 
 export async function discoverComposerIds(workspacePath: string): Promise<string[]> {
@@ -217,19 +340,30 @@ export async function discoverComposerIds(workspacePath: string): Promise<string
 }
 
 export async function loadComposerDataMap(
-  seedIds: string[]
+  orderedSeedIds: string[],
+  limits: ComposerTreeLimits
 ): Promise<Map<string, CursorComposerData>> {
   const globalDbPath = getGlobalStateDbPath();
-  if (!fs.existsSync(globalDbPath) || seedIds.length === 0 || !isSqliteCliAvailable()) {
+  const maxTotal = limits.maxTotalComposers;
+  if (
+    !fs.existsSync(globalDbPath) ||
+    orderedSeedIds.length === 0 ||
+    maxTotal <= 0 ||
+    !isSqliteCliAvailable()
+  ) {
     return new Map();
   }
 
   const composers = new Map<string, CursorComposerData>();
-  const pending = [...new Set(seedIds)];
+  const pending = [...new Set(orderedSeedIds)];
+  const pendingSet = new Set(pending);
 
-  while (pending.length > 0) {
-    const composerId = pending.pop();
+  while (pending.length > 0 && composers.size < maxTotal) {
+    const composerId = pending.shift();
     if (!composerId || composers.has(composerId)) {
+      continue;
+    }
+    if (shouldSkipComposerIdBeforeLoad(composerId)) {
       continue;
     }
 
@@ -238,20 +372,28 @@ export async function loadComposerDataMap(
       'cursorDiskKV',
       `composerData:${composerId}`
     );
-    if (!data?.composerId) {
+    if (!data?.composerId || isSubagentComposerData(data)) {
       continue;
     }
 
     composers.set(composerId, data);
-    for (const childId of data.subComposerIds ?? []) {
-      if (!composers.has(childId)) {
-        pending.push(childId);
-      }
+    if (composers.size >= maxTotal) {
+      break;
     }
-    for (const childId of data.subagentComposerIds ?? []) {
-      if (!composers.has(childId)) {
-        pending.push(childId);
+
+    for (const childId of [
+      ...(data.subComposerIds ?? []),
+      ...(data.subagentComposerIds ?? []),
+    ]) {
+      if (
+        composers.has(childId) ||
+        pendingSet.has(childId) ||
+        shouldSkipComposerIdBeforeLoad(childId)
+      ) {
+        continue;
       }
+      pending.unshift(childId);
+      pendingSet.add(childId);
     }
   }
 
@@ -259,10 +401,14 @@ export async function loadComposerDataMap(
 }
 
 export async function loadWorkspaceComposers(
-  workspacePath: string
+  workspacePath: string,
+  limits: ComposerTreeLimits
 ): Promise<Map<string, CursorComposerData>> {
   const seedIds = await discoverComposerIds(workspacePath);
-  return loadComposerDataMap(seedIds);
+  const activityById = discoverComposerActivityMap(workspacePath, seedIds);
+  const ranked = rankComposerIds(seedIds, activityById);
+  const selected = selectComposerIdsForLimits(ranked, limits);
+  return loadComposerDataMap(selected, limits);
 }
 
 export function isCursorStorageAvailable(): boolean {

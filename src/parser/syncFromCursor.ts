@@ -14,8 +14,11 @@ export async function syncFromCursor(
     return null;
   }
 
-  const composers = await loadWorkspaceComposers(workspaceFolder.uri.fsPath);
-  const parser = new ChatParser();
   const limits = getComposerTreeLimits();
+  const composers = await loadWorkspaceComposers(
+    workspaceFolder.uri.fsPath,
+    limits
+  );
+  const parser = new ChatParser();
   return parser.parseWorkspaceComposers(composers, workspaceFolder.name, limits);
 }
