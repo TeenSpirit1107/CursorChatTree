@@ -2,22 +2,19 @@
 
 一个在 Cursor / VS Code 侧边栏中以树形结构展示 AI 对话分支的扩展。
 
-> **当前状态：** 早期原型。扩展会从 Cursor 本地数据读取会话并推断 fork 分支；在 Cursor 聊天界面中打开对应会话尚未实现。
+> **当前状态：** 早期原型。树形界面和本地存储可用；在 Cursor 中打开对应聊天会话尚未实现。
 
 ## 功能
 
 - 侧边栏树形视图管理对话分支
-- **从 Cursor 同步** — 启动时与点击刷新时，读取当前工作区相关的 composer 数据（需要系统已安装 `sqlite3`，并能访问 Cursor 本地数据库）
-- **按分支展示** — 子节点是「从共同前缀 fork 出来的独立会话（composer）」，而不是逐条 user/assistant 消息
-- 创建、重命名、删除 **本地** 分支（在无法同步 Cursor 时，或用于手动规划）
-- 将同步结果缓存到工作区 `.cursor-chat-tree/chats.json`
-- 高亮当前选中的节点（实心圆点图标）
+- 创建、重命名、删除分支
+- 按工作区将分支数据保存到 `.cursor-chat-tree/chats.json`
+- 高亮当前选中的分支
 
 ## 环境要求
 
 - [Cursor](https://cursor.com/) 或 VS Code `>= 1.85`
 - Node.js `>= 18`（从源码构建时需要）
-- **PATH 中可用的 `sqlite3` 命令**（用于读取 Cursor 的 `state.vscdb`）。Ubuntu/Debian 示例：`sudo apt install sqlite3`
 
 ## 在 Cursor 中安装
 
@@ -70,17 +67,15 @@
 
 2. **打开视图** — 点击活动栏的树形图标，或通过命令面板运行 **View: Open View**，选择 **AI Chat Tree**。
 
-3. **树的结构** — 根节点为工作区名称。其下为各聊天会话（composer）。若 Cursor 中从某条历史前缀 fork 出新会话，新会话会作为 **子分支** 挂在父会话下。没有 fork 的会话为叶子节点。
+3. **选中分支** — 点击树中的节点即可设为当前活动分支（加粗显示）。
 
-4. **选中节点** — 点击树中的节点设为当前活动节点（实心圆点图标）。
+4. **创建分支** — 点击视图标题栏的 `+` 按钮、节点旁的 `+`，或命令面板中的 **AI Chat Tree: Create Branch**。
 
-5. **创建分支** — 点击视图标题栏的 `+`、节点旁的 `+`，或命令面板中的 **AI Chat Tree: Create Branch**。新建分支写入本地 `chats.json`。从 Cursor 同步的节点为只读（这些节点上没有内联 `+`）。
+5. **重命名** — 右键分支（根节点除外）选择 **Rename**，或使用命令面板。
 
-6. **重命名 / 删除** — 右键 **本地** 分支（仅对手动创建的分支显示菜单项），或使用命令面板。
+6. **删除** — 右键分支选择 **Delete**，会同时删除其所有子分支。
 
-7. **刷新** — 点击视图标题栏的刷新按钮，**从 Cursor 重新同步**并更新缓存 JSON。若同步失败（未安装 `sqlite3`、无 Cursor 数据等），则改为从磁盘加载上次保存的 `chats.json`。
-
-首次启动时会同样尝试 Cursor 同步；失败则回退到已保存或默认的本地分支数据。
+7. **刷新** — 点击视图标题栏的刷新按钮，从磁盘重新加载数据。
 
 ### 数据存储位置
 
@@ -90,7 +85,7 @@
 <工作区根目录>/.cursor-chat-tree/chats.json
 ```
 
-同步成功后会用 Cursor 构建的树覆盖写入该文件。若不想把本地聊天元数据提交到 Git，可将 `.cursor-chat-tree/` 加入 `.gitignore`（本仓库已忽略）。
+若不想把本地聊天元数据提交到 Git，可将 `.cursor-chat-tree/` 加入项目的 `.gitignore`。
 
 ## 开发
 
@@ -105,17 +100,15 @@
 
 - `src/extension.ts` — 扩展激活与树视图注册
 - `src/tree/` — 树数据提供者与节点项
-- `src/parser/` — Cursor 存储读取、composer 发现、fork 树构建（`MessageForkParser`）
 - `src/storage/` — JSON 持久化
 - `src/commands/` — 创建 / 重命名 / 删除 / 刷新命令
 - `esbuild.js` — 生产构建（CommonJS，`vscode` 外部化）
 
 ## 已知限制
 
-- 点击树节点不会在 Cursor 中打开对应聊天会话。
-- Fork 检测为启发式规则（composer 之间 bubble id 前缀相同且至少两条；子 agent / task 类 composer 会跳过）。Cursor 存储格式变化时可能漏检或误连分支。
-- 必须打开至少一个工作区文件夹，且能读取用户目录下的 Cursor 数据（Linux 上一般为 `~/.config/Cursor`）。
-- 刷新且同步成功时会用 Cursor 树覆盖缓存；不会与纯本地分支做合并。
+- 尚未读取或同步 Cursor 内置聊天历史（`ChatParser` 仍为占位实现）。
+- 点击分支不会打开对应的 Cursor 聊天会话。
+- 必须至少打开一个工作区文件夹。
 
 ## 许可证
 

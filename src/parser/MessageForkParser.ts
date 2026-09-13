@@ -1,9 +1,7 @@
 import { ChatNode, ChatNodeStatus } from '../model/ChatNode';
-import { readBubbleData } from './CursorStorageReader';
 import { CursorComposerData } from './cursorTypes';
 
 const MIN_SHARED_BUBBLES = 2;
-const MAX_TAIL_MESSAGES = 40;
 
 interface ForkLink {
   parentId: string;
@@ -52,24 +50,6 @@ function isSubagentComposer(composer: CursorComposerData): boolean {
     Boolean(composer.subagentInfo?.parentComposerId) ||
     composer.composerId.startsWith('task-')
   );
-}
-
-function truncate(text: string, max = 72): string {
-  const normalized = text.replace(/\s+/g, ' ').trim();
-  if (normalized.length <= max) {
-    return normalized;
-  }
-  return `${normalized.slice(0, max - 1)}…`;
-}
-
-function bubbleTitle(composerId: string, bubbleId: string, bubbleType: number): string {
-  const bubble = readBubbleData(composerId, bubbleId);
-  const text = (bubble?.rawText ?? bubble?.text ?? '').trim();
-  const role = bubbleType === 1 ? 'You' : 'Assistant';
-  if (text) {
-    return `${role}: ${truncate(text)}`;
-  }
-  return role;
 }
 
 export class MessageForkParser {
@@ -168,43 +148,15 @@ export class MessageForkParser {
   ): ChatNode {
     const composerId = composer.composerId;
     const headers = composer.fullConversationHeadersOnly ?? [];
-    const children: ChatNode[] = [];
     const childLinks = forkChildren.get(composerId) ?? [];
 
-    const continuationStart = this.continuationStart(
-      headers.length,
-      lcpFromParent,
-      childLinks
-    );
-    const continuationEnd = this.continuationEnd(
-      headers.length,
-      lcpFromParent,
-      childLinks
-    );
-    const messageNodes: ChatNode[] = [];
-    for (let index = continuationStart; index < continuationEnd; index += 1) {
-      const header = headers[index];
-      messageNodes.push({
-        id: `msg:${composerId}:${header.bubbleId}`,
-        parentId: composerId,
-        title: bubbleTitle(composerId, header.bubbleId, header.type),
-        createdAt: composer.createdAt ?? Date.now(),
-        children: [],
-        kind: 'message',
-        composerId,
-        bubbleId: header.bubbleId,
-        bubbleType: header.type,
-        source: 'cursor',
-      });
-    }
-
-    const forkChildNodes: ChatNode[] = [];
+    const children: ChatNode[] = [];
     for (const link of childLinks) {
       const childComposer = composers.get(link.childId);
       if (!childComposer) {
         continue;
       }
-      forkChildNodes.push(
+      children.push(
         this.buildComposerNode(
           childComposer,
           composers,
@@ -214,27 +166,6 @@ export class MessageForkParser {
           link.lcpLength
         )
       );
-    }
-
-    if (lcpFromParent > 0 && headers.length >= lcpFromParent) {
-      const forkBubble = headers[lcpFromParent - 1];
-      children.push({
-        id: `fork:${composerId}:${forkBubble.bubbleId}`,
-        parentId: composerId,
-        title: `Fork · ${bubbleTitle(composerId, forkBubble.bubbleId, forkBubble.type)}`,
-        createdAt: composer.createdAt ?? Date.now(),
-        children: [],
-        kind: 'fork-point',
-        composerId,
-        bubbleId: forkBubble.bubbleId,
-        bubbleType: forkBubble.type,
-        forkedFromComposerId: forkParent.get(composerId)?.parentId,
-        forkedAtBubbleId: forkBubble.bubbleId,
-        source: 'cursor',
-      });
-      children.push(...messageNodes, ...forkChildNodes);
-    } else {
-      children.push(...forkChildNodes, ...messageNodes);
     }
 
     return {
@@ -254,34 +185,5 @@ export class MessageForkParser {
           : undefined,
       source: 'cursor',
     };
-  }
-
-  private continuationStart(
-    headerCount: number,
-    lcpFromParent: number,
-    childLinks: Array<{ childId: string; lcpLength: number }>
-  ): number {
-    if (childLinks.length > 0) {
-      return Math.max(lcpFromParent, Math.min(...childLinks.map((link) => link.lcpLength)));
-    }
-    if (lcpFromParent > 0) {
-      return lcpFromParent;
-    }
-    return Math.max(0, headerCount - MAX_TAIL_MESSAGES);
-  }
-
-  private continuationEnd(
-    headerCount: number,
-    lcpFromParent: number,
-    childLinks: ForkChildRef[]
-  ): number {
-    if (childLinks.length === 0) {
-      return headerCount;
-    }
-    const minChildLcp = Math.min(...childLinks.map((link) => link.lcpLength));
-    if (lcpFromParent > 0 && minChildLcp > lcpFromParent) {
-      return minChildLcp;
-    }
-    return headerCount;
   }
 }
