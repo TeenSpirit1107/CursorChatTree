@@ -1,3 +1,4 @@
+import { ComposerTreeLimits } from '../config/composerTreeSettings';
 import { ChatNode } from '../model/ChatNode';
 import { CursorComposerData } from './cursorTypes';
 import { MessageForkParser } from './MessageForkParser';
@@ -7,8 +8,9 @@ export class ChatParser {
 
   parseWorkspaceComposers(
     composers: Map<string, CursorComposerData>,
-    workspaceTitle = 'Conversations'
+    workspaceTitle = 'Conversations',
+    limits: ComposerTreeLimits
   ): ChatNode | null {
-    return this.forkParser.buildWorkspaceTree(composers, workspaceTitle);
+    return this.forkParser.buildWorkspaceTree(composers, workspaceTitle, limits);
   }
 }

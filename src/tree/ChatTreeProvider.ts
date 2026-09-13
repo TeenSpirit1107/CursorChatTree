@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { applyComposerTreeLimits } from '../config/applyComposerTreeLimits';
 import {
   ChatNode,
   createChatNode,
@@ -30,7 +31,8 @@ export class ChatTreeProvider
     if (synced) {
       this.root = synced;
     } else {
-      this.root = await this.storage.load();
+      this.root = applyComposerTreeLimits(await this.storage.load());
+      await this.storage.save(this.root);
     }
     this.activeNodeId = this.root.id;
     this.refresh();
@@ -42,10 +44,10 @@ export class ChatTreeProvider
       return null;
     }
 
-    this.root = synced;
-    await this.storage.save(synced);
+    this.root = applyComposerTreeLimits(synced);
+    await this.storage.save(this.root);
     this.refresh();
-    return synced;
+    return this.root;
   }
 
   refresh(): void {
@@ -53,7 +55,8 @@ export class ChatTreeProvider
   }
 
   async reloadFromStorage(): Promise<void> {
-    this.root = await this.storage.load();
+    this.root = applyComposerTreeLimits(await this.storage.load());
+    await this.storage.save(this.root);
     this.activeNodeId = this.root.id;
     this.refresh();
   }

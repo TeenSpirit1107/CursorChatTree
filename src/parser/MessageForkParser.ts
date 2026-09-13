@@ -1,4 +1,6 @@
+import { ComposerTreeLimits } from '../config/composerTreeSettings';
 import { ChatNode, ChatNodeStatus } from '../model/ChatNode';
+import { pruneComposerTree } from './composerTreeLimits';
 import { CursorComposerData } from './cursorTypes';
 
 const MIN_SHARED_BUBBLES = 2;
@@ -33,6 +35,11 @@ function composerTitle(composer: CursorComposerData): string {
   return name || '(Untitled chat)';
 }
 
+function composerActivityAt(composer: CursorComposerData): number {
+  const t = Math.max(composer.createdAt ?? 0, composer.lastUpdatedAt ?? 0);
+  return t || Date.now();
+}
+
 function getBubbleIds(composer: CursorComposerData): string[] {
   return (composer.fullConversationHeadersOnly ?? []).map((header) => header.bubbleId);
 }
@@ -55,7 +62,8 @@ function isSubagentComposer(composer: CursorComposerData): boolean {
 export class MessageForkParser {
   buildWorkspaceTree(
     composers: Map<string, CursorComposerData>,
-    workspaceTitle = 'Conversations'
+    workspaceTitle = 'Conversations',
+    limits: ComposerTreeLimits
   ): ChatNode | null {
     const eligible = [...composers.values()].filter((composer) => !isSubagentComposer(composer));
     if (eligible.length === 0) {
@@ -69,7 +77,7 @@ export class MessageForkParser {
       .filter((composer) => !forkParent.has(composer.composerId))
       .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
 
-    return {
+    const tree: ChatNode = {
       id: 'root',
       title: workspaceTitle,
       createdAt: roots[0]?.createdAt ?? Date.now(),
@@ -80,6 +88,8 @@ export class MessageForkParser {
       kind: 'workspace-root',
       source: 'cursor',
     };
+
+    return pruneComposerTree(tree, limits);
   }
 
   private buildForkParentMap(composers: CursorComposerData[]): Map<string, ForkLink> {
@@ -172,7 +182,7 @@ export class MessageForkParser {
       id: composerId,
       parentId,
       title: composerTitle(composer),
-      createdAt: composer.createdAt ?? composer.lastUpdatedAt ?? Date.now(),
+      createdAt: composerActivityAt(composer),
       children,
       summary: composer.subtitle?.trim() || composer.unifiedMode,
       status: mapStatus(composer.status),

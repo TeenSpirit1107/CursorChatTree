@@ -10,9 +10,30 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "AI Chat Tree",
+      "properties": {
+        "cursorChatTree.maxRootComposers": {
+          "type": "number",
+          "default": 20,
+          "minimum": 1,
+          "maximum": 500,
+          "description": "Maximum top-level chat sessions under the workspace root. Sessions with more recent subtree activity are kept first."
+        },
+        "cursorChatTree.maxTotalComposers": {
+          "type": "number",
+          "default": 64,
+          "minimum": 1,
+          "maximum": 1000,
+          "description": "Maximum chat sessions in the entire tree (excluding the workspace root row). If smaller than maxRootComposers, it is raised to match."
+        }
+      }
+    },
     "viewsContainers": {
       "activitybar": [
         {

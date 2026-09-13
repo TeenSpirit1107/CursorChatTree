@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { getComposerTreeLimits } from '../config/composerTreeSettings';
 import { ChatNode } from '../model/ChatNode';
 import { ChatParser } from './ChatParser';
 import {
@@ -15,5 +16,6 @@ export async function syncFromCursor(
 
   const composers = await loadWorkspaceComposers(workspaceFolder.uri.fsPath);
   const parser = new ChatParser();
-  return parser.parseWorkspaceComposers(composers, workspaceFolder.name);
+  const limits = getComposerTreeLimits();
+  return parser.parseWorkspaceComposers(composers, workspaceFolder.name, limits);
 }

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { registerCommands } from './commands/commands';
 import { getWorkspaceStorage } from './storage/ChatStorage';
+import { startCursorStoragePoll } from './sync/cursorStoragePoll';
 import { ChatTreeItem } from './tree/ChatTreeItem';
 import { ChatTreeProvider } from './tree/ChatTreeProvider';
 
@@ -30,7 +31,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   });
 
   const disposables = registerCommands(provider, treeView);
-  context.subscriptions.push(treeView, ...disposables);
+  context.subscriptions.push(
+    treeView,
+    startCursorStoragePoll(provider, workspaceFolder),
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (
+        event.affectsConfiguration('cursorChatTree.maxRootComposers') ||
+        event.affectsConfiguration('cursorChatTree.maxTotalComposers')
+      ) {
+        void provider.syncFromCursor();
+      }
+    }),
+    ...disposables
+  );
 }
 
 export function deactivate(): void {}
