@@ -79,7 +79,8 @@ export class MessageForkParser {
   buildWorkspaceTree(
     composers: Map<string, CursorComposerData>,
     workspaceTitle = 'Conversations',
-    limits: ComposerTreeLimits
+    limits: ComposerTreeLimits,
+    pinnedComposerIds: ReadonlySet<string> = new Set()
   ): ChatNode | null {
     const eligible = [...composers.values()].filter(
       (composer) =>
@@ -94,7 +95,7 @@ export class MessageForkParser {
 
     const roots = eligible
       .filter((composer) => !forkParent.has(composer.composerId))
-      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+      .sort((a, b) => this.compareRootComposers(a, b, pinnedComposerIds));
 
     const tree: ChatNode = {
       id: 'root',
@@ -108,7 +109,20 @@ export class MessageForkParser {
       source: 'cursor',
     };
 
-    return pruneComposerTree(tree, limits);
+    return pruneComposerTree(tree, limits, pinnedComposerIds);
+  }
+
+  private compareRootComposers(
+    a: CursorComposerData,
+    b: CursorComposerData,
+    pinnedComposerIds: ReadonlySet<string>
+  ): number {
+    const aPinned = pinnedComposerIds.has(a.composerId);
+    const bPinned = pinnedComposerIds.has(b.composerId);
+    if (aPinned !== bPinned) {
+      return aPinned ? -1 : 1;
+    }
+    return composerActivityAt(b) - composerActivityAt(a);
   }
 
   private buildForkParentMap(composers: CursorComposerData[]): Map<string, ForkLink> {

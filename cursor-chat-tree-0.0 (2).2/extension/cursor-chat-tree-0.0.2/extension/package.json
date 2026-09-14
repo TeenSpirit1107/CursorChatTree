@@ -1,0 +1,125 @@
+{
+  "name": "cursor-chat-tree",
+  "displayName": "AI Chat Tree",
+  "description": "Visualize AI chat conversation branches as a tree",
+  "version": "0.0.2",
+  "publisher": "cursor-chat-tree",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "AI Chat Tree",
+      "properties": {
+        "cursorChatTree.maxRootComposers": {
+          "type": "number",
+          "default": 20,
+          "minimum": 1,
+          "maximum": 500,
+          "description": "Maximum top-level chat sessions under the workspace root. Sessions with more recent subtree activity are kept first."
+        },
+        "cursorChatTree.maxTotalComposers": {
+          "type": "number",
+          "default": 64,
+          "minimum": 1,
+          "maximum": 1000,
+          "description": "Maximum chat sessions in the entire tree (excluding the workspace root row). If smaller than maxRootComposers, it is raised to match."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cursor-chat-tree",
+          "title": "AI Chat Tree",
+          "icon": "media/tree-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "cursor-chat-tree": [
+        {
+          "id": "chatTreeView",
+          "name": "AI Chat Tree"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "cursorChatTree.createBranch",
+        "title": "Create Branch",
+        "category": "AI Chat Tree",
+        "icon": "$(add)"
+      },
+      {
+        "command": "cursorChatTree.rename",
+        "title": "Rename",
+        "category": "AI Chat Tree",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "cursorChatTree.delete",
+        "title": "Delete",
+        "category": "AI Chat Tree",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "cursorChatTree.refresh",
+        "title": "Refresh",
+        "category": "AI Chat Tree",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "cursorChatTree.createBranch",
+          "when": "view == chatTreeView",
+          "group": "navigation"
+        },
+        {
+          "command": "cursorChatTree.refresh",
+          "when": "view == chatTreeView",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "cursorChatTree.createBranch",
+          "when": "view == chatTreeView && viewItem != cursor-readonly",
+          "group": "inline"
+        },
+        {
+          "command": "cursorChatTree.rename",
+          "when": "view == chatTreeView && viewItem == branch",
+          "group": "1_modification"
+        },
+        {
+          "command": "cursorChatTree.delete",
+          "when": "view == chatTreeView && viewItem == branch",
+          "group": "2_delete"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "compile": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.21.5",
+    "typescript": "^5.5.0",
+    "vsce": "^2.15.0"
+  }
+}

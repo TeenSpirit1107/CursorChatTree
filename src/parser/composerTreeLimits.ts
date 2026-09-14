@@ -1,5 +1,6 @@
 import { ComposerTreeLimits } from '../config/composerTreeSettings';
 import { ChatNode } from '../model/ChatNode';
+import { compareComposerIdPriority } from './composerIdSelection';
 
 function computeSubtreeLatest(
   node: ChatNode,
@@ -100,9 +101,32 @@ export function stripEmptyShellComposers(workspaceRoot: ChatNode): ChatNode {
  * limits.maxTotalComposers composers overall. Priority uses the latest
  * activity time in each node's subtree.
  */
+function composerNodeId(node: ChatNode): string {
+  return node.composerId ?? node.id;
+}
+
+function compareComposerNodes(
+  a: ChatNode,
+  b: ChatNode,
+  latestCache: Map<string, number>,
+  pinnedIds: ReadonlySet<string>
+): number {
+  const activityById = new Map<string, number>([
+    [composerNodeId(a), latestCache.get(a.id) ?? a.createdAt ?? 0],
+    [composerNodeId(b), latestCache.get(b.id) ?? b.createdAt ?? 0],
+  ]);
+  return compareComposerIdPriority(
+    composerNodeId(a),
+    composerNodeId(b),
+    activityById,
+    pinnedIds
+  );
+}
+
 export function pruneComposerTree(
   workspaceRoot: ChatNode,
-  limits: ComposerTreeLimits
+  limits: ComposerTreeLimits,
+  pinnedComposerIds: ReadonlySet<string> = new Set()
 ): ChatNode {
   const { maxRootComposers, maxTotalComposers } = limits;
   if (workspaceRoot.id !== 'root' && workspaceRoot.kind !== 'workspace-root') {
@@ -118,9 +142,8 @@ export function pruneComposerTree(
   }
 
   const selectedRoots = [...workspaceRoot.children]
-    .sort(
-      (a, b) =>
-        (latestCache.get(b.id) ?? 0) - (latestCache.get(a.id) ?? 0)
+    .sort((a, b) =>
+      compareComposerNodes(a, b, latestCache, pinnedComposerIds)
     )
     .slice(0, maxRootComposers);
 

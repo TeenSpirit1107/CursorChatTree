@@ -7,23 +7,38 @@ export function composerActivity(
   return Math.max(createdAt ?? 0, lastUpdatedAt ?? 0);
 }
 
+export function compareComposerIdPriority(
+  a: string,
+  b: string,
+  activityById: Map<string, number>,
+  pinnedIds: ReadonlySet<string>
+): number {
+  const aPinned = pinnedIds.has(a);
+  const bPinned = pinnedIds.has(b);
+  if (aPinned !== bPinned) {
+    return aPinned ? -1 : 1;
+  }
+  const diff = (activityById.get(b) ?? 0) - (activityById.get(a) ?? 0);
+  if (diff !== 0) {
+    return diff;
+  }
+  return a.localeCompare(b);
+}
+
 export function rankComposerIds(
   seedIds: string[],
-  activityById: Map<string, number>
+  activityById: Map<string, number>,
+  pinnedIds: ReadonlySet<string> = new Set()
 ): string[] {
   const unique = [...new Set(seedIds)];
-  return unique.sort((a, b) => {
-    const diff = (activityById.get(b) ?? 0) - (activityById.get(a) ?? 0);
-    if (diff !== 0) {
-      return diff;
-    }
-    return a.localeCompare(b);
-  });
+  return unique.sort((a, b) =>
+    compareComposerIdPriority(a, b, activityById, pinnedIds)
+  );
 }
 
 /**
- * Picks composer IDs to load before hitting SQLite: top maxRootComposers by activity,
- * then fills toward maxTotalComposers with the next highest-activity ids.
+ * Picks composer IDs to load before hitting SQLite: pinned first (by activity), then
+ * unpinned (by activity); keeps up to maxRootComposers roots and maxTotalComposers overall.
  */
 export function selectComposerIdsForLimits(
   rankedIds: string[],

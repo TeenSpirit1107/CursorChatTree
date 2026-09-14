@@ -198,6 +198,32 @@ function mergeComposerActivity(
   }
 }
 
+export function discoverPinnedComposerIds(workspacePath: string): Set<string> {
+  const workspaceStorageId = findWorkspaceStorageId(workspacePath);
+  if (!workspaceStorageId) {
+    return new Set();
+  }
+
+  const workspaceDbPath = path.join(
+    getWorkspaceStorageRoot(),
+    workspaceStorageId,
+    'state.vscdb'
+  );
+  if (!fs.existsSync(workspaceDbPath)) {
+    return new Set();
+  }
+
+  const pinned = readJsonValue<string[]>(
+    workspaceDbPath,
+    'ItemTable',
+    'cursor/pinnedComposers'
+  );
+  if (!Array.isArray(pinned)) {
+    return new Set();
+  }
+  return new Set(pinned.filter((id) => typeof id === 'string' && id.length > 0));
+}
+
 export function discoverComposerActivityMap(
   workspacePath: string,
   seedIds: string[]
@@ -402,11 +428,13 @@ export async function loadComposerDataMap(
 
 export async function loadWorkspaceComposers(
   workspacePath: string,
-  limits: ComposerTreeLimits
+  limits: ComposerTreeLimits,
+  pinnedIds: ReadonlySet<string> = new Set()
 ): Promise<Map<string, CursorComposerData>> {
-  const seedIds = await discoverComposerIds(workspacePath);
+  const discovered = await discoverComposerIds(workspacePath);
+  const seedIds = [...new Set([...discovered, ...pinnedIds])];
   const activityById = discoverComposerActivityMap(workspacePath, seedIds);
-  const ranked = rankComposerIds(seedIds, activityById);
+  const ranked = rankComposerIds(seedIds, activityById, pinnedIds);
   const selected = selectComposerIdsForLimits(ranked, limits);
   return loadComposerDataMap(selected, limits);
 }

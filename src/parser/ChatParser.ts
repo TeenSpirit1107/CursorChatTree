@@ -9,8 +9,14 @@ export class ChatParser {
   parseWorkspaceComposers(
     composers: Map<string, CursorComposerData>,
     workspaceTitle = 'Conversations',
-    limits: ComposerTreeLimits
+    limits: ComposerTreeLimits,
+    pinnedComposerIds: ReadonlySet<string> = new Set()
   ): ChatNode | null {
-    return this.forkParser.buildWorkspaceTree(composers, workspaceTitle, limits);
+    return this.forkParser.buildWorkspaceTree(
+      composers,
+      workspaceTitle,
+      limits,
+      pinnedComposerIds
+    );
   }
 }
