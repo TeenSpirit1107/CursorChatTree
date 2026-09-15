@@ -1,6 +1,11 @@
-import { execFileSync } from 'child_process';
-import * as fs from 'fs';
 import * as path from 'path';
+import {
+  cursorPathExists,
+  isSqliteCliAvailable,
+  listCursorSubdirNames,
+  queryCursorDbSelect,
+  statCursorPath,
+} from '../cursor/readOnlyCursorData';
 import {
   CursorBubbleData,
   CursorComposerData,
@@ -24,35 +29,15 @@ import {
   folderUriMatchesWorkspace,
 } from './CursorPaths';
 
-const MAX_BUFFER = 64 * 1024 * 1024;
-
 function escapeSqlString(value: string): string {
   return value.replace(/'/g, "''");
-}
-
-function isSqliteCliAvailable(): boolean {
-  try {
-    execFileSync('sqlite3', ['-version'], { stdio: 'ignore' });
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 function queryJsonRows<T extends Record<string, unknown>>(
   dbPath: string,
   sql: string
 ): T[] {
-  const output = execFileSync('sqlite3', ['-json', dbPath, sql], {
-    encoding: 'utf8',
-    maxBuffer: MAX_BUFFER,
-  }).trim();
-
-  if (!output) {
-    return [];
-  }
-
-  return JSON.parse(output) as T[];
+  return queryCursorDbSelect<T>(dbPath, sql);
 }
 
 function readJsonValue<T>(
@@ -108,7 +93,7 @@ export function discoverRegisteredComposerIds(workspacePath: string): Set<string
       workspaceStorageId,
       'state.vscdb'
     );
-    if (fs.existsSync(workspaceDbPath)) {
+    if (cursorPathExists(workspaceDbPath)) {
       const composerData = readJsonValue<CursorWorkspaceComposerData>(
         workspaceDbPath,
         'ItemTable',
@@ -123,7 +108,7 @@ export function discoverRegisteredComposerIds(workspacePath: string): Set<string
   }
 
   const globalDbPath = getGlobalStateDbPath();
-  if (fs.existsSync(globalDbPath)) {
+  if (cursorPathExists(globalDbPath)) {
     for (const id of collectComposerIdsFromGlobalHeaders(
       globalDbPath,
       workspacePath,
@@ -179,10 +164,7 @@ function collectComposerIdsFromAgentTranscripts(workspacePath: string): string[]
     'agent-transcripts'
   );
   try {
-    return fs
-      .readdirSync(transcriptsDir, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name);
+    return listCursorSubdirNames(transcriptsDir);
   } catch {
     return [];
   }
@@ -261,7 +243,7 @@ export function discoverPinnedComposerIds(workspacePath: string): Set<string> {
     workspaceStorageId,
     'state.vscdb'
   );
-  if (!fs.existsSync(workspaceDbPath)) {
+  if (!cursorPathExists(workspaceDbPath)) {
     return new Set();
   }
 
@@ -289,7 +271,7 @@ export function discoverComposerActivityMap(
       workspaceStorageId,
       'state.vscdb'
     );
-    if (fs.existsSync(workspaceDbPath)) {
+    if (cursorPathExists(workspaceDbPath)) {
       const composerData = readJsonValue<CursorWorkspaceComposerData>(
         workspaceDbPath,
         'ItemTable',
@@ -310,7 +292,7 @@ export function discoverComposerActivityMap(
   }
 
   const globalDbPath = getGlobalStateDbPath();
-  if (fs.existsSync(globalDbPath)) {
+  if (cursorPathExists(globalDbPath)) {
     const headers = readJsonValue<CursorComposerHeadersIndex>(
       globalDbPath,
       'ItemTable',
@@ -341,7 +323,7 @@ export function discoverComposerActivityMap(
   );
   for (const composerId of seedIds) {
     try {
-      const stat = fs.statSync(path.join(transcriptsDir, composerId));
+      const stat = statCursorPath(path.join(transcriptsDir, composerId));
       mergeComposerActivity(
         activityById,
         composerId,
@@ -390,7 +372,7 @@ export async function discoverComposerIds(workspacePath: string): Promise<string
       workspaceStorageId,
       'state.vscdb'
     );
-    if (fs.existsSync(workspaceDbPath)) {
+    if (cursorPathExists(workspaceDbPath)) {
       const composerData = readJsonValue<CursorWorkspaceComposerData>(
         workspaceDbPath,
         'ItemTable',
@@ -414,7 +396,7 @@ export async function discoverComposerIds(workspacePath: string): Promise<string
   }
 
   const globalDbPath = getGlobalStateDbPath();
-  if (fs.existsSync(globalDbPath)) {
+  if (cursorPathExists(globalDbPath)) {
     for (const id of filterIdsToRegistered(
       collectComposerIdsFromGlobalHeaders(
         globalDbPath,
@@ -443,7 +425,7 @@ export async function loadComposerDataMap(
   const globalDbPath = getGlobalStateDbPath();
   const maxTotal = limits.maxTotalComposers;
   if (
-    !fs.existsSync(globalDbPath) ||
+    !cursorPathExists(globalDbPath) ||
     orderedSeedIds.length === 0 ||
     maxTotal <= 0 ||
     !isSqliteCliAvailable()
@@ -513,7 +495,7 @@ export async function loadWorkspaceComposers(
 }
 
 export function isCursorStorageAvailable(): boolean {
-  return isSqliteCliAvailable() && fs.existsSync(getGlobalStateDbPath());
+  return isSqliteCliAvailable() && cursorPathExists(getGlobalStateDbPath());
 }
 
 export function readBubbleData(
@@ -521,7 +503,7 @@ export function readBubbleData(
   bubbleId: string
 ): CursorBubbleData | undefined {
   const globalDbPath = getGlobalStateDbPath();
-  if (!fs.existsSync(globalDbPath) || !isSqliteCliAvailable()) {
+  if (!cursorPathExists(globalDbPath) || !isSqliteCliAvailable()) {
     return undefined;
   }
   return readJsonValue<CursorBubbleData>(

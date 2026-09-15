@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { isCursorDataPath } from '../cursor/readOnlyCursorData';
 import { ChatNode, createDefaultRoot } from '../model/ChatNode';
 
 export interface ChatProvider {
@@ -37,6 +38,11 @@ export class LocalJsonChatStorage implements ChatStorage {
   }
 
   async save(root: ChatNode): Promise<void> {
+    if (isCursorDataPath(this.storageUri.fsPath)) {
+      throw new Error(
+        'Refusing to write extension cache into Cursor-owned data directories'
+      );
+    }
     const dirUri = vscode.Uri.joinPath(this.storageUri, '..');
     await vscode.workspace.fs.createDirectory(dirUri);
     const content = Buffer.from(JSON.stringify(root, null, 2), 'utf8');

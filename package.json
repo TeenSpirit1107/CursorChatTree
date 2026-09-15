@@ -113,7 +113,8 @@
     "vscode:prepublish": "npm run build",
     "build": "node esbuild.js",
     "watch": "node esbuild.js --watch",
-    "compile": "tsc --noEmit"
+    "compile": "tsc --noEmit && npm run verify:cursor-readonly",
+    "verify:cursor-readonly": "node scripts/verify-cursor-readonly.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

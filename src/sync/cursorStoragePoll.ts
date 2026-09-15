@@ -1,6 +1,9 @@
-import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import {
+  cursorPathExists,
+  statCursorPath,
+} from '../cursor/readOnlyCursorData';
 import {
   findWorkspaceStorageId,
   getCursorProjectsRoot,
@@ -17,7 +20,7 @@ const MIN_SYNC_INTERVAL_MS = 10_000;
 function getWatchPaths(workspacePath: string): string[] {
   const paths: string[] = [];
   const globalDb = getGlobalStateDbPath();
-  if (fs.existsSync(globalDb)) {
+  if (cursorPathExists(globalDb)) {
     paths.push(globalDb);
   }
 
@@ -28,7 +31,7 @@ function getWatchPaths(workspacePath: string): string[] {
       workspaceStorageId,
       'state.vscdb'
     );
-    if (fs.existsSync(workspaceDb)) {
+    if (cursorPathExists(workspaceDb)) {
       paths.push(workspaceDb);
     }
   }
@@ -38,7 +41,7 @@ function getWatchPaths(workspacePath: string): string[] {
     workspacePathToProjectSlug(workspacePath),
     'agent-transcripts'
   );
-  if (fs.existsSync(transcriptsDir)) {
+  if (cursorPathExists(transcriptsDir)) {
     paths.push(transcriptsDir);
   }
 
@@ -49,7 +52,7 @@ function fingerprint(paths: string[]): string {
   const parts: string[] = [];
   for (const filePath of paths) {
     try {
-      const stat = fs.statSync(filePath);
+      const stat = statCursorPath(filePath);
       parts.push(`${filePath}:${stat.mtimeMs}:${stat.size}`);
     } catch {
       parts.push(`${filePath}:missing`);
