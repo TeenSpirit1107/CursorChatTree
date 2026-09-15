@@ -94,6 +94,58 @@ function collectComposerIdsFromWorkspaceData(data: CursorWorkspaceComposerData):
   return [...ids];
 }
 
+/** Composers Cursor still lists for this workspace (authoritative for "not deleted"). */
+export function discoverRegisteredComposerIds(workspacePath: string): Set<string> {
+  const ids = new Set<string>();
+  if (!isSqliteCliAvailable()) {
+    return ids;
+  }
+
+  const workspaceStorageId = findWorkspaceStorageId(workspacePath);
+  if (workspaceStorageId) {
+    const workspaceDbPath = path.join(
+      getWorkspaceStorageRoot(),
+      workspaceStorageId,
+      'state.vscdb'
+    );
+    if (fs.existsSync(workspaceDbPath)) {
+      const composerData = readJsonValue<CursorWorkspaceComposerData>(
+        workspaceDbPath,
+        'ItemTable',
+        'composer.composerData'
+      );
+      for (const composer of composerData?.allComposers ?? []) {
+        if (composer.composerId) {
+          ids.add(composer.composerId);
+        }
+      }
+    }
+  }
+
+  const globalDbPath = getGlobalStateDbPath();
+  if (fs.existsSync(globalDbPath)) {
+    for (const id of collectComposerIdsFromGlobalHeaders(
+      globalDbPath,
+      workspacePath,
+      workspaceStorageId
+    )) {
+      ids.add(id);
+    }
+  }
+
+  return ids;
+}
+
+function filterIdsToRegistered(
+  ids: Iterable<string>,
+  registered: ReadonlySet<string>
+): string[] {
+  if (registered.size === 0) {
+    return [...ids];
+  }
+  return [...ids].filter((id) => registered.has(id));
+}
+
 function collectComposerIdsFromViewPaneKeys(dbPath: string): string[] {
   const keys = readStringColumn(
     dbPath,
@@ -321,10 +373,14 @@ export async function discoverComposerIds(workspacePath: string): Promise<string
     return [];
   }
 
+  const registered = discoverRegisteredComposerIds(workspacePath);
   const ids = new Set<string>();
   const workspaceStorageId = findWorkspaceStorageId(workspacePath);
 
-  for (const id of collectComposerIdsFromAgentTranscripts(workspacePath)) {
+  for (const id of filterIdsToRegistered(
+    collectComposerIdsFromAgentTranscripts(workspacePath),
+    registered
+  )) {
     ids.add(id);
   }
 
@@ -341,11 +397,17 @@ export async function discoverComposerIds(workspacePath: string): Promise<string
         'composer.composerData'
       );
       if (composerData) {
-        for (const id of collectComposerIdsFromWorkspaceData(composerData)) {
+        for (const id of filterIdsToRegistered(
+          collectComposerIdsFromWorkspaceData(composerData),
+          registered
+        )) {
           ids.add(id);
         }
       }
-      for (const id of collectComposerIdsFromViewPaneKeys(workspaceDbPath)) {
+      for (const id of filterIdsToRegistered(
+        collectComposerIdsFromViewPaneKeys(workspaceDbPath),
+        registered
+      )) {
         ids.add(id);
       }
     }
@@ -353,11 +415,20 @@ export async function discoverComposerIds(workspacePath: string): Promise<string
 
   const globalDbPath = getGlobalStateDbPath();
   if (fs.existsSync(globalDbPath)) {
-    for (const id of collectComposerIdsFromGlobalHeaders(
-      globalDbPath,
-      workspacePath,
-      workspaceStorageId
+    for (const id of filterIdsToRegistered(
+      collectComposerIdsFromGlobalHeaders(
+        globalDbPath,
+        workspacePath,
+        workspaceStorageId
+      ),
+      registered
     )) {
+      ids.add(id);
+    }
+  }
+
+  if (registered.size > 0) {
+    for (const id of registered) {
       ids.add(id);
     }
   }
@@ -431,8 +502,10 @@ export async function loadWorkspaceComposers(
   limits: ComposerTreeLimits,
   pinnedIds: ReadonlySet<string> = new Set()
 ): Promise<Map<string, CursorComposerData>> {
+  const registered = discoverRegisteredComposerIds(workspacePath);
   const discovered = await discoverComposerIds(workspacePath);
-  const seedIds = [...new Set([...discovered, ...pinnedIds])];
+  const pinned = filterIdsToRegistered(pinnedIds, registered);
+  const seedIds = [...new Set([...discovered, ...pinned])];
   const activityById = discoverComposerActivityMap(workspacePath, seedIds);
   const ranked = rankComposerIds(seedIds, activityById, pinnedIds);
   const selected = selectComposerIdsForLimits(ranked, limits);

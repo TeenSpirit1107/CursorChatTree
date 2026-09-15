@@ -91,6 +91,7 @@ export class MessageForkParser {
     }
 
     const forkParent = this.buildForkParentMap(eligible);
+    this.dropForkLinksToMissingParents(forkParent, eligible);
     const forkChildren = this.buildForkChildrenMap(forkParent);
 
     const roots = eligible
@@ -123,6 +124,19 @@ export class MessageForkParser {
       return aPinned ? -1 : 1;
     }
     return composerActivityAt(b) - composerActivityAt(a);
+  }
+
+  /** When the fork parent was deleted in Cursor, show the child as a workspace root composer. */
+  private dropForkLinksToMissingParents(
+    forkParent: Map<string, ForkLink>,
+    eligible: CursorComposerData[]
+  ): void {
+    const eligibleIds = new Set(eligible.map((composer) => composer.composerId));
+    for (const [childId, link] of forkParent.entries()) {
+      if (!eligibleIds.has(link.parentId)) {
+        forkParent.delete(childId);
+      }
+    }
   }
 
   private buildForkParentMap(composers: CursorComposerData[]): Map<string, ForkLink> {

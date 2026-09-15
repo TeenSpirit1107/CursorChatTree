@@ -6,6 +6,7 @@ import {
   findNode,
   removeNode,
 } from '../model/ChatNode';
+import { pruneDeletedCursorComposers } from '../parser/pruneDeletedCursorComposers';
 import { syncFromCursor } from '../parser/syncFromCursor';
 import { ChatStorage } from '../storage/ChatStorage';
 import { ChatTreeItem } from './ChatTreeItem';
@@ -31,8 +32,7 @@ export class ChatTreeProvider
     if (synced) {
       this.root = synced;
     } else {
-      this.root = applyComposerTreeLimits(await this.storage.load());
-      await this.storage.save(this.root);
+      this.root = await this.loadHygieneCache();
     }
     this.activeNodeId = this.root.id;
     this.refresh();
@@ -55,10 +55,19 @@ export class ChatTreeProvider
   }
 
   async reloadFromStorage(): Promise<void> {
-    this.root = applyComposerTreeLimits(await this.storage.load());
-    await this.storage.save(this.root);
+    this.root = await this.loadHygieneCache();
     this.activeNodeId = this.root.id;
     this.refresh();
+  }
+
+  private async loadHygieneCache(): Promise<ChatNode> {
+    const loaded = applyComposerTreeLimits(await this.storage.load());
+    const root = pruneDeletedCursorComposers(
+      loaded,
+      this.workspaceFolder.uri.fsPath
+    );
+    await this.storage.save(root);
+    return root;
   }
 
   getTreeItem(element: ChatTreeItem): vscode.TreeItem {
@@ -126,6 +135,12 @@ export class ChatTreeProvider
     if (!this.root || node.id === 'root') {
       return;
     }
+    if (node.source === 'cursor') {
+      vscode.window.showWarningMessage(
+        'AI Chat Tree: Cursor chats are read-only in this extension.'
+      );
+      return;
+    }
 
     const title = await vscode.window.showInputBox({
       prompt: 'Rename branch',
@@ -148,6 +163,12 @@ export class ChatTreeProvider
 
   async delete(node: ChatNode): Promise<void> {
     if (!this.root || node.id === 'root') {
+      return;
+    }
+    if (node.source === 'cursor') {
+      vscode.window.showWarningMessage(
+        'AI Chat Tree: Cursor chats are read-only in this extension.'
+      );
       return;
     }
 
