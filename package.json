@@ -71,6 +71,11 @@
         "icon": "$(trash)"
       },
       {
+        "command": "cursorChatTree.loadMoreRoots",
+        "title": "View more",
+        "category": "AI Chat Tree"
+      },
+      {
         "command": "cursorChatTree.refresh",
         "title": "Refresh",
         "category": "AI Chat Tree",

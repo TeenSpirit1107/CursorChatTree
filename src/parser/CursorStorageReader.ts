@@ -418,23 +418,36 @@ export async function discoverComposerIds(workspacePath: string): Promise<string
   return [...ids];
 }
 
-export async function loadComposerDataMap(
+export async function rankWorkspaceComposerIds(
+  workspacePath: string,
+  pinnedIds: ReadonlySet<string> = new Set()
+): Promise<string[]> {
+  const registered = discoverRegisteredComposerIds(workspacePath);
+  const discovered = await discoverComposerIds(workspacePath);
+  const pinned = filterIdsToRegistered(pinnedIds, registered);
+  const seedIds = [...new Set([...discovered, ...pinned])];
+  const activityById = discoverComposerActivityMap(workspacePath, seedIds);
+  return rankComposerIds(seedIds, activityById, pinnedIds);
+}
+
+function fillComposerDataMap(
+  composers: Map<string, CursorComposerData>,
   orderedSeedIds: string[],
-  limits: ComposerTreeLimits
-): Promise<Map<string, CursorComposerData>> {
+  maxTotal: number
+): void {
   const globalDbPath = getGlobalStateDbPath();
-  const maxTotal = limits.maxTotalComposers;
   if (
     !cursorPathExists(globalDbPath) ||
     orderedSeedIds.length === 0 ||
     maxTotal <= 0 ||
     !isSqliteCliAvailable()
   ) {
-    return new Map();
+    return;
   }
 
-  const composers = new Map<string, CursorComposerData>();
-  const pending = [...new Set(orderedSeedIds)];
+  const pending = [
+    ...new Set(orderedSeedIds.filter((id) => !composers.has(id))),
+  ];
   const pendingSet = new Set(pending);
 
   while (pending.length > 0 && composers.size < maxTotal) {
@@ -475,7 +488,29 @@ export async function loadComposerDataMap(
       pendingSet.add(childId);
     }
   }
+}
 
+export async function loadComposerDataMap(
+  orderedSeedIds: string[],
+  limits: ComposerTreeLimits
+): Promise<Map<string, CursorComposerData>> {
+  const composers = new Map<string, CursorComposerData>();
+  fillComposerDataMap(composers, orderedSeedIds, limits.maxTotalComposers);
+  return composers;
+}
+
+export function loadAdditionalComposersForLimits(
+  existing: Map<string, CursorComposerData>,
+  rankedIds: string[],
+  limits: ComposerTreeLimits
+): Map<string, CursorComposerData> {
+  const selected = selectComposerIdsForLimits(rankedIds, limits);
+  const missing = selected.filter((id) => !existing.has(id));
+  if (missing.length === 0) {
+    return existing;
+  }
+  const composers = new Map(existing);
+  fillComposerDataMap(composers, missing, limits.maxTotalComposers);
   return composers;
 }
 
@@ -484,12 +519,7 @@ export async function loadWorkspaceComposers(
   limits: ComposerTreeLimits,
   pinnedIds: ReadonlySet<string> = new Set()
 ): Promise<Map<string, CursorComposerData>> {
-  const registered = discoverRegisteredComposerIds(workspacePath);
-  const discovered = await discoverComposerIds(workspacePath);
-  const pinned = filterIdsToRegistered(pinnedIds, registered);
-  const seedIds = [...new Set([...discovered, ...pinned])];
-  const activityById = discoverComposerActivityMap(workspacePath, seedIds);
-  const ranked = rankComposerIds(seedIds, activityById, pinnedIds);
+  const ranked = await rankWorkspaceComposerIds(workspacePath, pinnedIds);
   const selected = selectComposerIdsForLimits(ranked, limits);
   return loadComposerDataMap(selected, limits);
 }

@@ -1,19 +1,24 @@
 import * as vscode from 'vscode';
+import { ChatTreeElement, ChatTreeProvider } from '../tree/ChatTreeProvider';
 import { ChatTreeItem } from '../tree/ChatTreeItem';
-import { ChatTreeProvider } from '../tree/ChatTreeProvider';
 
 export function registerCommands(
   provider: ChatTreeProvider,
-  treeView: vscode.TreeView<ChatTreeItem>
+  treeView: vscode.TreeView<ChatTreeElement>
 ): vscode.Disposable[] {
   return [
     vscode.commands.registerCommand('cursorChatTree.createBranch', async () => {
       const selection = treeView.selection[0];
-      await provider.createBranch(selection?.node);
+      const parent =
+        selection instanceof ChatTreeItem ? selection.node : undefined;
+      await provider.createBranch(parent);
     }),
 
     vscode.commands.registerCommand('cursorChatTree.rename', async (item?: ChatTreeItem) => {
-      const target = item ?? treeView.selection[0];
+      const selected = treeView.selection[0];
+      const target =
+        item ??
+        (selected instanceof ChatTreeItem ? selected : undefined);
       if (!target) {
         vscode.window.showWarningMessage('Select a branch to rename.');
         return;
@@ -22,7 +27,10 @@ export function registerCommands(
     }),
 
     vscode.commands.registerCommand('cursorChatTree.delete', async (item?: ChatTreeItem) => {
-      const target = item ?? treeView.selection[0];
+      const selected = treeView.selection[0];
+      const target =
+        item ??
+        (selected instanceof ChatTreeItem ? selected : undefined);
       if (!target) {
         vscode.window.showWarningMessage('Select a branch to delete.');
         return;
@@ -31,6 +39,7 @@ export function registerCommands(
     }),
 
     vscode.commands.registerCommand('cursorChatTree.refresh', async () => {
+      provider.resetVisibleRootCount();
       const synced = await provider.syncFromCursor();
       if (!synced) {
         vscode.window.showWarningMessage(
@@ -38,6 +47,10 @@ export function registerCommands(
         );
         await provider.reloadFromStorage();
       }
+    }),
+
+    vscode.commands.registerCommand('cursorChatTree.loadMoreRoots', async () => {
+      await provider.loadMoreRoots();
     }),
   ];
 }

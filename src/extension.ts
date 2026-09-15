@@ -2,8 +2,8 @@ import * as vscode from 'vscode';
 import { registerCommands } from './commands/commands';
 import { getWorkspaceStorage } from './storage/ChatStorage';
 import { startCursorStoragePoll } from './sync/cursorStoragePoll';
+import { ChatTreeElement, ChatTreeProvider } from './tree/ChatTreeProvider';
 import { ChatTreeItem } from './tree/ChatTreeItem';
-import { ChatTreeProvider } from './tree/ChatTreeProvider';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -18,14 +18,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const provider = new ChatTreeProvider(storage, workspaceFolder);
   await provider.initialize();
 
-  const treeView = vscode.window.createTreeView<ChatTreeItem>('chatTreeView', {
+  const treeView = vscode.window.createTreeView<ChatTreeElement>('chatTreeView', {
     treeDataProvider: provider,
     showCollapseAll: true,
   });
 
   treeView.onDidChangeSelection((e) => {
     const item = e.selection[0];
-    if (item) {
+    if (item instanceof ChatTreeItem) {
       provider.setActiveNode(item.node);
     }
   });
