@@ -2,4 +2,6 @@ docs-dev
 node_modules/
 dist/
 *.vsix
+# Unpacked VSIX output (e.g. after unzip or IDE extract)
+cursor-chat-tree-*/
 .cursor-chat-tree/
