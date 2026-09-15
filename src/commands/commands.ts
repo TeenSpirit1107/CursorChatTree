@@ -54,10 +54,3 @@ export function registerCommands(
     }),
   ];
 }
-
-export async function openChat(_id: string): Promise<void> {
-  // Future: open the corresponding Cursor chat session.
-  vscode.window.showInformationMessage(
-    `Opening chat "${_id}" is not yet supported.`
-  );
-}

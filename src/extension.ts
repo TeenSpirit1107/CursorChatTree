@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { openComposerChat } from './cursor/openComposerChat';
 import { registerCommands } from './commands/commands';
 import { getWorkspaceStorage } from './storage/ChatStorage';
 import { startCursorStoragePoll } from './sync/cursorStoragePoll';
@@ -27,6 +28,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const item = e.selection[0];
     if (item instanceof ChatTreeItem) {
       provider.setActiveNode(item.node);
+      void openComposerChat(item.node);
     }
   });
 
